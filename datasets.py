@@ -45,6 +45,9 @@ def parse_ndjson(file: str, max_items=None, item_start=0) -> Optional[List[Any]]
 		print(f"{file} does not exist")
 		return None
 
+	if item_start == None:
+		item_start = 0
+
 	try:
 		data = []
 		with open(file, "r", encoding="utf-8") as f:
@@ -63,7 +66,7 @@ def parse_ndjson(file: str, max_items=None, item_start=0) -> Optional[List[Any]]
 		print(f"error parsing ndjson file: {e}")
 		return None
 
-def process_blob(source_directory, blob_name, items_per_class, item_offset):
+def process_blob(source_directory, blob_name, items_per_class, item_offset=0):
 	print("processing %s" % blob_name)
 	local_path = os.path.join(source_directory, blob_name)
 	if not os.path.exists(local_path):

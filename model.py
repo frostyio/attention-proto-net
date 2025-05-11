@@ -3,16 +3,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Model(nn.Module):
-	def __init__(self, input_dim=128, embed_dim=256, max_strokes=32):
+	def __init__(self, input_dim=128, embed_dim=256, max_strokes=32, dropout=(0, 0, 0)):
 		super().__init__()
+		p1, p2, p3 = dropout
 
 		self.mlp = nn.Sequential(
 			nn.Linear(input_dim, embed_dim),
 			nn.LeakyReLU(),
-			nn.Linear(embed_dim, embed_dim)
+			nn.Dropout(p=p1),
+			nn.Linear(embed_dim, embed_dim),
+			nn.Dropout(p=p2)
 		)
 
-		self.attn = nn.MultiheadAttention(embed_dim, 1)
+		self.attn = nn.MultiheadAttention(embed_dim, 1, dropout=p3)
 
 	def embed(self, x):
 		"""

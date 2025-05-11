@@ -54,7 +54,7 @@ def preprocess_data(data, max_strokes=32, max_points=64):
 	return processed
 
 class DrawingFewShotDataset(Dataset):
-	def __init__(self, processed_data, n_way, k_shot, q_queries, word2idx=None):
+	def __init__(self, processed_data, n_way, k_shot, q_queries, word2idx=None, episodes_per_epoch=None):
 		# process_data = {
 		#	["word"] = [
 		# 		numpy_array (max_strokes, max_points*2)
@@ -69,6 +69,7 @@ class DrawingFewShotDataset(Dataset):
 		self.n_way = n_way
 		self.k_shot = k_shot
 		self.q_queries = q_queries
+		self.episodes_per_epoch = episodes_per_epoch
 
 		for word, entry_list in processed_data.items():
 			for entry in entry_list:
@@ -79,7 +80,10 @@ class DrawingFewShotDataset(Dataset):
 		self.labels = torch.tensor(labels)
 
 	def __len__(self):
-		return len(self.data)
+		if self.episodes_per_epoch is None:
+			return len(self.data)
+		else:
+			return self.episodes_per_epoch
 
 	def __getitem__(self, idx):
 		sampled_classes = random.sample(set(self.labels.tolist()), self.n_way)
