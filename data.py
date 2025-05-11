@@ -108,3 +108,120 @@ class DrawingFewShotDataset(Dataset):
 			query_embeddings,
 			tensor(query_labels)
 		)
+
+
+from threading import RLock
+from concurrent.futures import ThreadPoolExecutor
+from os import path, remove
+import json
+
+blobs_cached = {}
+blobs_lock = RLock()
+
+def do_preprocessing_for_blobs(blob_name, n_samples: int):
+	"""
+	process n amount of lines in a blob and cache them
+	"""
+	global blobs_cached, blobs_lock
+
+	# with blobs_lock:
+	blob = blobs_cached.get(blob_name, {"first_samples": [], "word": ""})
+	samples = blob["first_samples"]
+
+	# process needed samples
+	current_n_samples = len(samples)
+	remaining = max(0, n_samples - current_n_samples)
+	range_to_process = range(current_n_samples, current_n_samples + n_samples)
+
+	# no more samples needed to process
+	if remaining == 0:
+		return
+
+	if not path.exists(blob_name):
+		print(f"failed to parse {blob_name} (does not exist)")
+		return None
+
+	print(f"needing to process {blob_name} with remaining samples {remaining}, so {range_to_process}")
+
+	# process new data
+	data = []
+	try:
+		with open(blob_name, "r", encoding="utf-8") as f:
+			lines = f.readlines()[range_to_process.start:range_to_process.stop]
+
+			for i, line in enumerate(lines):
+				if line.strip():
+					item = json.loads(line)
+					if isinstance(item, dict):
+						# print(f"processed line nbr {i}")
+						data.append(item)
+	except (json.JSONDecodeError, IOError) as e:
+		print(f"error parsing ndjson file: {e}")
+
+	# messy processing
+	data = clean_data({"data": data})
+	data = preprocess_data(data)
+	if len(data.keys()) <= 0:
+		return
+	word = next(iter(data.keys()))
+	data = data[word]
+
+	# add to cached samples
+	# with blobs_lock:
+	if blob_name not in blobs_cached:
+		blobs_cached[blob_name] = {"first_samples": [], "word": ""}
+
+	blobs_cached[blob_name]["first_samples"] += data
+	blobs_cached[blob_name]["word"] = word
+
+def get_class_samples(key, n_samples, idx_offset=0):
+	# with blobs_lock:
+	cached = blobs_cached[key]
+	samples = cached["first_samples"][idx_offset:idx_offset+n_samples]
+	return (cached["word"], samples)
+
+def get_preprocessed_data(
+	data_dir, data_blobs, # blob = class
+	tr_n_way, tr_samples, # training # classes, training # samples per class
+	va_n_way, va_samples, # validation # classes, validation # samples per class
+	te_n_way, te_samples, # testing # classes, testing # samples per class
+):
+	# find blobs not preprocessed
+	preprocess_blobs = [path.join(data_dir, name) for name in data_blobs if name not in blobs_cached]
+
+	# split
+	keys = list(set(list(blobs_cached.keys()) + preprocess_blobs))
+
+	total_n_way = tr_n_way + va_n_way + te_n_way
+	if total_n_way > len(keys):
+		raise ValueError("not enough classes")
+
+	keys = keys[0:total_n_way] # get only the keys that will be used
+
+	tr_keys = keys[0:tr_n_way]
+	va_keys = keys[tr_n_way:tr_n_way+va_n_way]
+	te_keys = keys[tr_n_way+va_n_way:total_n_way]
+
+	with ThreadPoolExecutor(max_workers=total_n_way) as executor:
+		futures = []
+		futures += [executor.submit(do_preprocessing_for_blobs, blob, tr_samples) for blob in tr_keys if blob in preprocess_blobs]
+		futures += [executor.submit(do_preprocessing_for_blobs, blob, va_samples) for blob in va_keys if blob in preprocess_blobs]
+		futures += [executor.submit(do_preprocessing_for_blobs, blob, te_samples) for blob in te_keys if blob in preprocess_blobs]
+
+		for i, future in enumerate(futures):
+			result = future.result()
+			print(f"{i} / {total_n_way} done")
+
+	with blobs_lock:
+		get_data = lambda k, n_samples: {
+			word: samples
+			for key in k
+			if key in blobs_cached
+			for word, samples in [get_class_samples(key, n_samples)]
+		}
+
+		tr_data = get_data(tr_keys, tr_samples)
+		va_data = get_data(va_keys, va_samples)
+		te_data = get_data(te_keys, te_samples)
+
+		return (tr_data, va_data, te_data)
