@@ -17,23 +17,32 @@ class Model(nn.Module):
 
 		self.attn = nn.MultiheadAttention(embed_dim, 1, dropout=p3)
 
+		self.score = nn.Linear(embed_dim, 1)
+
 	def embed(self, x):
 		"""
 		x: (# batches, # samples, # of strokes, input_dim)
+		returns
 		"""
 
+		b, n, m, d = x.shape
+
 		# mlp
-		s = self.mlp(x) # (batches, samples, strokes, embed_dim)
+		s = self.mlp(x) # (b, n, m, d)
 
 		# attention
-		# expecting (max_strokes "seq_len", batch_size, embed_dim)
-		s = s.view(-1, s.shape[2], s.shape[3])
-		s = s.transpose(0, 1)
+		s = s.view(b * n, m, -1)
+		s = s.transpose(0, 1) # (m, n, d)
 
-		attn_output, _ = self.attn(s, s, s)
+		attn_output, _ = self.attn(s, s, s) # (m, n, d)
+		attn_output = attn_output.transpose(0, 1) # (n, m, d)
+
+		# attn pooling
+		scores = self.score(attn_output).squeeze(-1) # (n, m, d)
+		weights = torch.softmax(scores, dim=1).unsqueeze(-1) # (n, m, 1)
 
 		# aggregating
-		embedding = attn_output.mean(dim=0)
+		embedding = (attn_output * weights).sum(dim=1) # (n, d)
 
 		return embedding
 
