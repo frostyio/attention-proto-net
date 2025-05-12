@@ -1,10 +1,8 @@
-from torch import optim, no_grad, argmax, save, load, tensor
+from torch import optim, no_grad, argmax, tensor
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import torch.nn.functional as F
 import torch.nn as nn
 from numpy import mean
-from tqdm import tqdm
-import csv
 import optuna
 
 class Solver:
