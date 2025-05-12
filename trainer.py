@@ -92,18 +92,18 @@ class Trainer:
 		model_config = self.model_config
 
 		self.model = Model(
-		    input_dim=model_config["d_points"]*2,
-		    embed_dim=model_config["embed_dim"],
-		    max_strokes=model_config["seq_len"],
-		    dropout=model_config["dropout"]
+			input_dim=model_config["d_points"]*2,
+			embed_dim=model_config["embed_dim"],
+			max_strokes=model_config["seq_len"],
+			dropout=model_config["dropout"]
 		).to(self.device)
 
 		self.solver = Solver(
-		    self.model,
-		    n_way=model_config["n_way"],
-		    lr=self.optimizer_config["learning_rate"],
-		    betas=self.optimizer_config["betas"],
-		    device=self.device
+			self.model,
+			n_way=model_config["n_way"],
+			lr=self.optimizer_config["learning_rate"],
+			betas=self.optimizer_config["betas"],
+			device=self.device
 		)
 
 	def set_model_config(self, config: ModelConfig):
