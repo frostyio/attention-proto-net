@@ -210,7 +210,7 @@ def get_preprocessed_data(
 
 		for i, future in enumerate(futures):
 			result = future.result()
-			print(f"{i} / {total_n_way} done")
+			print(f"{i + 1} / {total_n_way} done")
 
 	with blobs_lock:
 		get_data = lambda k, n_samples: {
