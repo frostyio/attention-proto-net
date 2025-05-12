@@ -1,4 +1,5 @@
 from torch import optim, no_grad, argmax, save, load, tensor
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import torch.nn.functional as F
 import torch.nn as nn
 from numpy import mean
@@ -18,6 +19,7 @@ class Solver:
 	):
 		self.model = model.to(device)
 		self.optimizer = optim.Adam(self.model.parameters(), lr=lr, betas=betas, weight_decay=weight_decay)
+		self.scheduler = CosineAnnealingLR(self.optimizer, T_max=50)
 		self.classifier = nn.NLLLoss()
 		self.n_way = n_way
 		self.device = device
@@ -53,6 +55,7 @@ class Solver:
 
 				loss.backward()
 				self.optimizer.step()
+				self.scheduler.step()
 				epoch_loss += loss.item()
 
 			avg_loss = epoch_loss / len(training_loader)
